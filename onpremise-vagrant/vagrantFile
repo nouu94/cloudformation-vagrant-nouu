@@ -1,0 +1,41 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+
+#============#
+# Web Server #
+#============#
+
+	config.vm.define "web-server" do |cfg|
+		cfg.vm.box = "generic/centos9s"
+		cfg.vm.provider "virtualbox" do |vb|
+			vb.name = "web-server"
+		end
+		cfg.vm.host_name = "web-server"
+		cfg.vm.network "private_network", ip: "192.168.15.23"
+		cfg.vm.network "public_network", ip: "172.30.1.78"
+    
+		cfg.vm.provision "file", source: "~/vagrant/onpremise/.htaccess", destination: "~/.htaccess"
+		cfg.vm.provision "file", source: "~/vagrant/onpremise/wp-config.php", destination: "~/wp-config.php"
+		cfg.vm.provision "shell", path: "ssh_conf.sh", privileged: true
+		cfg.vm.provision "shell", path: "web-configuration.sh", privileged: true
+	end
+	
+#===========#
+# DB Server #
+#===========#
+
+	config.vm.define "db-server" do |cfg|
+		cfg.vm.box = "generic/centos9s"
+		cfg.vm.provider "virtualbox" do |vb|
+			vb.name = "db-server"
+		end
+		cfg.vm.host_name = "db-server"
+		cfg.vm.network "private_network", ip: "192.168.15.35"
+		cfg.vm.network "public_network", ip: "172.30.1.42"
+		cfg.vm.provision "shell", path: "ssh_conf.sh", privileged: true
+		cfg.vm.provision "shell", path: "db-configuration.sh", privileged: true
+	end
+
+end
