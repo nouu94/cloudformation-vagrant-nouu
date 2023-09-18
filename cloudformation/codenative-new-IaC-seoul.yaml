@@ -1,0 +1,771 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation Template for Newsinsa
+
+Parameters:
+  AwsRegion:
+    Type: String
+    Default: ap-northeast-2
+  AwsVPCip:
+    Type: String
+    Default: 10.0.0.0/16
+  Az1:
+    Type: String
+    Default: ap-northeast-2a
+  Az2:
+    Type: String
+    Default: ap-northeast-2c
+  PublicSubnetAip:
+    Type: String 
+    Default: 10.0.0.0/24
+  PublicSubnetCip:
+    Type: String 
+    Default: 10.0.1.0/24
+  PrivateWordpressSubnetAip:
+    Type: String 
+    Default: 10.0.2.0/24
+  PrivateWordpressSubnetCip:
+    Type: String 
+    Default: 10.0.3.0/24
+  RDSPrivateSubnetAip:
+    Type: String 
+    Default: 10.0.4.0/24
+  RDSPrivateSubnetCip:
+    Type: String 
+    Default: 10.0.5.0/24
+  OnpremiseSourcePassword:
+    Type: String
+    NoEcho: true
+    Default: codenative
+    Description: Onpremise Source Password
+  RdsTargetPassword:
+    Type: String
+    NoEcho: true
+    Default: codenative
+    Description: DMS SourceEndpoint Password
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 key pair to enable SSH access to the ECS instances
+      
+  DMSSourceEndpointPort:
+    Type: String
+    Description: The port number for the source DMSSourceEndpointPort.
+    Default: 33006
+  InstanceAMI:
+    Type: String
+    Default: ami-084e92d3e117f7692
+    
+  
+    
+
+Resources:
+
+############
+# Make VPC #
+############
+  MyVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref AwsVPCip
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: newsinsa-vpc
+          
+  MyInternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: newsinsa-Public-igw
+          
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MyInternetGateway
+      VpcId: !Ref MyVPC
+      
+         
+  MyNATGateway:
+    Type: 'AWS::EC2::NatGateway'
+    Properties:
+      AllocationId: !GetAtt MyEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: newsinsa-NAT-igw
+
+  PublicSubnetA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref PublicSubnetAip
+      AvailabilityZone: !Ref Az1
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Public-subnet-A
+
+  PrivateWordpressSubnetA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref PrivateWordpressSubnetAip
+      AvailabilityZone: !Ref Az1
+      Tags:
+        - Key: Name
+          Value: Private-wordpress-subnet-A
+
+  RDSPrivateSubnetA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref RDSPrivateSubnetAip
+      AvailabilityZone: !Ref Az1
+      Tags:
+        - Key: Name
+          Value: RDS-Private-subnet-A
+
+  PublicSubnetC:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref PublicSubnetCip
+      AvailabilityZone: !Ref Az2
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Public-subnet-C
+
+  PrivateWordpressSubnetC:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref PrivateWordpressSubnetCip
+      AvailabilityZone: !Ref Az2
+      Tags:
+        - Key: Name
+          Value: Private-wordpress-subnet-C
+
+  RDSPrivateSubnetC:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref RDSPrivateSubnetCip
+      AvailabilityZone: !Ref Az2
+      Tags:
+        - Key: Name
+          Value: RDS-Private-subnet-C
+
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: newsinsa-Public-rtb
+
+  PrivateRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: newsinsa-Private-rtb
+          
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: 
+      - MyVPC
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref MyInternetGateway
+
+  PrivateRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: 
+      - MyVPC
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref MyNATGateway
+          
+      
+      
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+      
+  PublicSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetC
+
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateWordpressSubnetA
+      
+  PrivateSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateWordpressSubnetC
+      
+  RDSPrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref RDSPrivateSubnetA
+      
+  RDSPrivateSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref RDSPrivateSubnetC
+
+
+
+
+#######################
+# Make Security Group #
+#######################
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Ref: MyVPC
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0 
+          
+  MountTargetSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Ref: MyVPC
+      GroupDescription: Security group for mount target
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 2049 # from과 to는 허용 포트 범위를 나타냄
+        ToPort: 2049
+        CidrIp: !Ref AwsVPCip
+        
+        
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Ref: MyVPC
+      GroupDescription: Security group for mount target
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+
+  RDSDBSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: RDS-DB-sg
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: RDS-DB-sg
+
+
+  EcsTaskSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Ref: MyVPC
+      GroupDescription: Security group for mount target
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
+          
+
+#########################
+# Make RDS Subnet Group #
+#########################
+
+  RDSSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupName: newsinsa-rds
+      DBSubnetGroupDescription: This is newsinsa-rds subnet group.
+      SubnetIds:
+        - !Ref RDSPrivateSubnetA
+        - !Ref RDSPrivateSubnetC
+
+############################
+# Make RDS Parameter Group #
+############################
+
+  RDSParameterGroup:
+    Type: 'AWS::RDS::DBClusterParameterGroup'
+    Properties:
+      Family: aurora-mysql5.7
+      Description: This is newsinsa-parameter group.
+      Parameters: 
+        binlog_format: "MIXED"
+        character_set_client: "utf8mb4"
+        character_set_connection: "utf8mb4"
+        character_set_database: "utf8mb4"
+        character_set_filesystem: "utf8mb4"
+        character_set_results: "utf8mb4"
+        character_set_server: "utf8mb4"
+        collation_connection: "utf8mb4_general_ci"
+        collation_server: "utf8mb4_general_ci"
+        time_zone: "Asia/Seoul"
+
+###########################
+# Make RDS Aurora Cluster #
+###########################
+
+  RDSAuroraCluster:
+    Type: 'AWS::RDS::DBCluster'
+    Properties:
+      Engine: aurora-mysql
+      EngineVersion: 5.7.mysql_aurora.2.11.2
+      DBClusterIdentifier: newsinsa-aurora-db
+      MasterUsername: wordpress
+      MasterUserPassword: codenative
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref RDSDBSecurityGroup
+      Port: 3306
+      DatabaseName: wordpress
+      DBClusterParameterGroupName: !Ref RDSParameterGroup
+      EnableHttpEndpoint: true
+      BackupRetentionPeriod: 7
+      DeletionProtection: false
+      PreferredBackupWindow: '06:00-07:00'
+      PreferredMaintenanceWindow: 'sun:07:00-sun:08:00'
+      StorageEncrypted: true
+      EnableIAMDatabaseAuthentication: true
+
+
+  # 쓰기 가능한 DB 인스턴스 설정
+  MyAuroraWriteInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      DBInstanceIdentifier: newsinsa-aurora-write-instance
+      Engine: aurora-mysql
+      DBClusterIdentifier: !Ref RDSAuroraCluster
+      DBInstanceClass: db.t2.small
+      PubliclyAccessible: false
+
+
+  # 읽기 가능한 DB 레플리카 설정
+  MyAuroraReadInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      DBInstanceIdentifier: newsinsa-aurora-read-instance
+      Engine: aurora-mysql
+      DBClusterIdentifier: !Ref RDSAuroraCluster
+      DBInstanceClass: db.t2.small
+      PubliclyAccessible: false
+
+
+
+
+#########################
+# Make DMS Subnet Group #
+#########################
+
+  DMSSubnetGroup:
+    Type: 'AWS::DMS::ReplicationSubnetGroup'
+    Properties:
+      ReplicationSubnetGroupDescription: This is dms-subnet group.
+      ReplicationSubnetGroupIdentifier: my-replication-subnet-group
+      SubnetIds:
+        - !Ref RDSPrivateSubnetA
+        - !Ref RDSPrivateSubnetC
+        
+        
+
+#################################
+# Make DMS Replication Instance #
+#################################
+
+  DMSReplicationInstance:
+    Type: 'AWS::DMS::ReplicationInstance'
+    DependsOn: 
+      - PublicRoute
+      - PrivateRoute
+    Properties:
+      ReplicationInstanceIdentifier: dms-replica-ins
+      ReplicationInstanceClass: dms.t3.small
+      AllocatedStorage: 10
+      VpcSecurityGroupIds:
+        - !Ref RDSDBSecurityGroup
+      ReplicationSubnetGroupIdentifier: !Ref DMSSubnetGroup
+      AvailabilityZone: !Ref Az1
+      EngineVersion: 3.5.1
+      PubliclyAccessible: true
+      MultiAZ: false
+      AutoMinorVersionUpgrade: true
+      PreferredMaintenanceWindow: sun:03:00-sun:04:00
+
+#####################
+# Make DMS Endpoint #
+#####################
+  DMSSourceEndpoint:
+    Type: 'AWS::DMS::Endpoint'
+    Properties:
+      EndpointIdentifier: Onpremise-source
+      EndpointType: source
+      EngineName: mysql
+      ServerName: 222.121.219.127
+      Port: !Ref DMSSourceEndpointPort
+      Username: wordpress
+      Password: !Ref OnpremiseSourcePassword
+      DatabaseName: wordpress
+
+  DMSTargetEndpoint:
+    Type: 'AWS::DMS::Endpoint'
+    Properties:
+      EndpointIdentifier: RDS-aurora-target
+      EndpointType: target
+      EngineName: aurora 
+      ServerName: !GetAtt RDSAuroraCluster.Endpoint.Address
+      Port: 3306
+      Username: wordpress
+      Password: !Ref RdsTargetPassword
+      DatabaseName: wordpress
+
+###########################
+# Make DMS Migration Task #
+###########################
+
+  DMSMigrationTask:
+    Type: 'AWS::DMS::ReplicationTask'
+    Properties:
+      ReplicationTaskIdentifier: DMS-onpremise-to-aurora
+      SourceEndpointArn: !Ref DMSSourceEndpoint
+      TargetEndpointArn: !Ref DMSTargetEndpoint
+      ReplicationInstanceArn: !Ref DMSReplicationInstance
+      MigrationType: full-load-and-cdc
+      TableMappings: '{
+        "rules": [
+          {
+            "rule-type": "selection",
+            "rule-id": "1",
+            "rule-name": "1",
+            "object-locator": {
+              "schema-name": "wordpress",
+              "table-name": "%"
+            },
+            "rule-action": "include"
+          }
+        ]
+      }'
+
+
+
+
+############
+# efs 생성  #
+############
+  FileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      FileSystemTags:
+      - Key: Name
+        Value: ecs-filesystem
+
+############
+# efs sg할당 #
+############
+  MountTargetA:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: FileSystem
+      SubnetId:
+        Ref: PrivateWordpressSubnetA
+      SecurityGroups:
+      - Ref: MountTargetSecurityGroup
+
+  MountTargetC:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: FileSystem
+      SubnetId:
+        Ref: PrivateWordpressSubnetC
+      SecurityGroups:
+      - Ref: MountTargetSecurityGroup
+      
+
+
+######################
+# Make Instance role #
+######################
+#  MyS3AccessRole:
+#    Type: "AWS::IAM::Role"
+#    Properties:
+#      AssumeRolePolicyDocument:
+#        Version: "2012-10-17"
+#        Statement:
+#          - Effect: Allow
+#            Principal:
+#              Service:
+#                - ec2.amazonaws.com
+#            Action:
+#              - "sts:AssumeRole"
+#      Policies:
+#        - PolicyName: "S3AccessPolicy"
+#          PolicyDocument:
+#            Version: "2012-10-17"
+#            Statement:
+#              - Effect: "Allow"
+#                Action:
+#                  - "s3:GetObject"
+#                Resource:
+#                  - "arn:aws:s3:::mybucket-hyeonje/*"
+
+
+#  MyInstanceProfile:
+#    Type: "AWS::IAM::InstanceProfile"
+#    Properties:
+#      Roles:
+#        - !Ref MyS3AccessRole
+
+#######################
+# Make tunneling Instance #
+#######################
+
+  MyEIP:
+    Type: 'AWS::EC2::EIP'
+    Properties:
+      Domain: vpc
+
+
+  AdminInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t2.micro # 추후 입력변수로 할당
+      KeyName: !Ref KeyName # code-native 키 페어 대신 입력값으로 키 페어를 생성
+      ImageId: !Ref InstanceAMI # 추후 입력변수로 할당
+      SubnetId: !Ref PrivateWordpressSubnetA
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+#      IamInstanceProfile: !Ref MyInstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp2
+      Tags:
+        - Key: Name
+          Value: tunneling-established-server
+
+            
+            
+            
+            
+
+
+
+
+
+################################### ecs ###############################################
+
+####################
+# ecs task cluster #
+####################
+  CodenativeCluster:
+    Type: "AWS::ECS::Cluster"
+    Properties:
+      CapacityProviders:
+        - FARGATE
+      ClusterName: codenative-cluster
+      ClusterSettings: 
+        - Name: "containerInsights"
+          Value: "enabled"
+
+
+
+#######################
+# ecs task definition #
+#######################
+
+  CodenativeTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: "codenative-task"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX      
+      Cpu: '512'  # 0.5 vCPU
+      Memory: '1024'  # 1GB
+      ExecutionRoleArn: ecsTaskExecutionRole
+      TaskRoleArn: ecsTaskExecutionRole
+      ContainerDefinitions:
+        - Name: "wordpress"
+          Image: "wordpress:php8.0-apache"
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          Environment:
+            - Name: "WORDPRESS_DB_HOST"
+              Value: !GetAtt RDSAuroraCluster.Endpoint.Address
+            - Name: "WORDPRESS_DB_NAME"
+              Value: "wordpress"
+            - Name: "WORDPRESS_DB_PASSWORD"
+              Value: "codenative"
+            - Name: "WORDPRESS_DB_USER"
+              Value: "wordpress"
+          LogConfiguration:
+            LogDriver: "awslogs"
+            Options:
+              awslogs-create-group: true
+              awslogs-group: /ecs/codenative-task
+              awslogs-region: !Ref AwsRegion
+              awslogs-stream-prefix: "wordpress"
+          MountPoints:
+            - SourceVolume: "wp-content"
+              ContainerPath: "/var/www/html/wp-content"
+
+
+#########################
+# IP-based Target Group #
+#########################
+  CodenativeIPTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref MyVPC
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      Tags:  
+        - Key: Name
+          Value: codenative-tg  
+
+
+
+#############
+# create alb#
+#############
+  CodenativeLoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: "codenative-alb"
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetC
+      SecurityGroups: 
+        - !Ref AlbSecurityGroup
+      Type: "application"
+
+
+####################
+# configure listner#
+####################
+  CodenativeListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    DependsOn:
+      - CodenativeIPTargetGroup
+      - CodenativeLoadBalancer
+    Properties:
+      LoadBalancerArn: !Ref CodenativeLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref CodenativeIPTargetGroup
+
+
+
+
+###########
+# Outputs #
+###########
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref MyVPC
+
+  PublicSubnetIds:
+    Description: List of Public Subnet IDs
+    Value: !Join
+      - ','
+      - - !Ref PublicSubnetA
+        - !Ref PublicSubnetC
+
+  PrivateWordpressSubnetIds:
+    Description: List of Private WordPress Subnet IDs
+    Value: !Join
+      - ','
+      - - !Ref PrivateWordpressSubnetA
+        - !Ref PrivateWordpressSubnetC
+
+  RDSPrivateSubnetIds:
+    Description: List of RDS Private Subnet IDs
+    Value: !Join
+      - ','
+      - - !Ref RDSPrivateSubnetA
+        - !Ref RDSPrivateSubnetC
+    
+
+
+
+################### Experiment code ######################
+
+
+
+###############
+# ecs-service #
+###############
+#  CodeNativeService:
+#    Type: AWS::ECS::Service
+#    DependsOn: 
+#      - CodenativeLoadBalancer
+#      - CodenativeIPTargetGroup
+#      - CodenativeListener
+#      - CodenativeTaskDefinition
+#    Properties:
+#      Cluster: !Ref CodenativeCluster
+#      TaskDefinition: !Ref CodenativeTaskDefinition
+#      LaunchType: "FARGATE"
+#      NetworkConfiguration:
+#        AwsvpcConfiguration:
+#          Subnets: 
+#            - !Ref PrivateWordpressSubnetA
+#            - !Ref PrivateWordpressSubnetC
+#          SecurityGroups: 
+#            - !Ref EcsTaskSg
+#      LoadBalancers:
+#        - TargetGroupArn: !Ref CodenativeIPTargetGroup
+#          ContainerName: "wordpress"
+#          ContainerPort: 80
