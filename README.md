@@ -1,9 +1,5 @@
 # newsinsa-code-collection
 
----
-
-<br>
-
 <br>
 
 ## onpremise-vagrant 디렉토리 구성
@@ -27,9 +23,39 @@ onpremise-vagrant<br>
 
 ## naver-shopping-crawlling-woocommerce-data-load 구성
 
+naver-shopping-crawlling-woocommerce-data-load
+
 │  naver-shopping.ipynb # 네이버 쇼핑 open api를 이용하여 우커머스 쇼핑몰 제품 등록, 30 ~ 60초 마다 회원 데이터 자동 적재
 
 위 파일을 이용한 결과는 아래의 이미지와 같이 상품 데이터가 적재됨.
 
 ![result](https://github.com/nouu94/newsinsa-code-collection/assets/71218142/aeb9f0dd-12db-4657-835b-58761aff41a1)
 
+<br>
+
+<br>
+
+## cloudformation 구성 파일
+
+cloudformation
+
+│  codenative-new-IaC-seoul.yaml # 서울 리전의 일부 서비스를 코드로 구현한 yaml파일<br>
+
+![image](https://github.com/nouu94/newsinsa-code-collection/assets/71218142/75e6649f-6987-44ae-9549-9b0d3d18397d)
+
+위와 같이 추후 다른 리전에도 사용할 수 있도록 다음과 같이 Az, InstanceAMI 등 파라미터를 다양하게 구성
+
+<br>
+
+![image](https://github.com/nouu94/newsinsa-code-collection/assets/71218142/4d345cf2-4e86-4114-9d3a-69769e0a1ca6)
+
+
+
+위와 같이 불투명도가 100%인 서비스 코드 기반으로 구현.
+
+-  VPC
+- AuroraDB Cluster, reader, writer
+- DMS
+- EFS
+- ECS TASK DEFINITION, CLUSTER
+- ALB, TG
