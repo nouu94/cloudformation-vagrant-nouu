@@ -51,7 +51,7 @@ cloudformation
 
 
 
-위와 같이 불투명도가 100%인 서비스 코드 기반으로 구현.
+클라우드 포메이션을 실행하면 다음과 같은 서비스가 구성
 
 -  VPC
 - AuroraDB Cluster, reader, writer
